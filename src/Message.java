@@ -21,12 +21,12 @@ public class Message implements Serializable
 	public String hostName;
 
 	// Constructor
-	public Message(String msg, int rould_id, String hostName)
+	public Message(String msg, int round_id, String hostName)
 	{
 		msgType = MessageType.string;
 		message = msg;
-		rould_id = round_id;
-		hostName = hostName;
+		this.round_id = round_id;
+		this.hostName = hostName;
 	}
 
 	// Convert current instance of Message to ByteBuffer in order to send message over SCTP

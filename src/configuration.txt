@@ -1,0 +1,15 @@
+# global parameter
+5
+#kjsdlkfns
+0 dc02 1234
+# jdksjl
+1 dc03 1233
+2 dc04 1233
+#
+#
+#
+#
+1 2
+# sdhckjsh
+0
+0

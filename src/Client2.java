@@ -29,11 +29,11 @@ public class Client2 {
             SctpChannel sc = SctpChannel.open(addr, 0, 0); // Connect to server using the address
             System.out.println("Connected to Server");
             while(true){
-//                Thread.sleep(3000);
+                Thread.sleep(2000);
                 MessageInfo messageInfo = MessageInfo.createOutgoing(null, 0); // MessageInfo for SCTP layer
                 sc.send(message.toByteBuffer(), messageInfo); // Messages are sent over SCTP using ByteBuffer
                 message.round_id++;
-                Thread.sleep(3000);
+                Thread.sleep(2000);
             }
         }catch(Exception e){
             System.out.println(e);
