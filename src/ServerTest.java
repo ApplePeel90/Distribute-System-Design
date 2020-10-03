@@ -77,7 +77,9 @@ public class ServerTest {
         PORT = Integer.parseInt(args[2]);
 
         readConfig(NODE);
-        currState = new CurrState(0, 0, 0, NODE);
+        HashMap<Receiver, Boolean> receiverTracker = new HashMap<>();
+
+        currState = new CurrState(0, 0, 0, NODE, receiverTracker);
         currState.numberOfNeighbors = neighborMapping.size();
         currState.msgLeftToRcv = 0;
         numOfClients = neighborMapping.size();
@@ -104,6 +106,7 @@ public class ServerTest {
             SctpChannel rcvSC = ssc.accept(); // Wait for incoming connection from client
 
             Receiver rcv = new Receiver(rcvSC, counter, currState); //send  the request to a separate thread
+            currState.receiverTracker.put(rcv, false);
             receivers.add(rcv);
         }
         Synchronizer synchronizer = new Synchronizer(currState, senders);
@@ -124,13 +127,15 @@ class CurrState {
     int msgLeftToRcv;
     int msgLeftToSnd;
     int numberOfNeighbors;
+    HashMap<Receiver, Boolean> receiverTracker;
 
 
-    public CurrState(int round_id, int msgLeftToRcv, int msgLeftToSnd, int NODE) {
+    public CurrState(int round_id, int msgLeftToRcv, int msgLeftToSnd, int NODE, HashMap<Receiver, Boolean> receiverTracker) {
         this.round_id = round_id;
         this.msgLeftToRcv = msgLeftToRcv;
         this.msgLeftToSnd = msgLeftToSnd;
         this.NODE = NODE;
+        this.receiverTracker = receiverTracker;
     }
 }
 
@@ -157,6 +162,7 @@ class Synchronizer extends Thread {
                             sender.send(message.toByteBuffer(), messageInfo); // Messages are sent over SCTP using ByteBuffer
                             System.out.println(message.message);
                         }
+                        for(Receiver rcv : currState.receiverTracker.keySet()) currState.receiverTracker.put(rcv, false);
                         currState.notifyAll();
                         // Thread.sleep(1000);
                     }
@@ -195,21 +201,29 @@ class Receiver extends Thread {
         try {
             while (true) {
                 synchronized (currState) {
+                    if(currState.receiverTracker.get(this)) {
+                        System.out.println("-----------------");
+                        currState.wait();
+                    }
                     ByteBuffer buf = ByteBuffer.allocateDirect(MAX_MSG_SIZE);
+                    // System.out.println("Waiting for MSG");
                     serverClient.receive(buf, null, null); // Messages are received over SCTP using ByteBuffer
+                    // System.out.println("After Receive");
                     Message msg = Message.fromByteBuffer(buf);
                     int msg_id = msg.round_id;
 
-                    while (msg_id > currState.round_id) {
-                        System.out.println("Receiver Waiting.");
-                        currState.wait();
-                    }
+                    currState.receiverTracker.put(this, true);
+
+                    // while (msg_id > currState.round_id) {
+                    //     System.out.println("Receiver Waiting.");
+                    //     currState.wait();
+                    // }
                     currState.msgLeftToRcv--;
                     System.out.println("MSG_LEFT: " + currState.msgLeftToRcv);
                     System.out.println("Node " + currState.NODE + " Received a Message at round " + msg_id);
                 }
                 try {
-                    Thread.sleep(2000);
+                    Thread.sleep(500);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
