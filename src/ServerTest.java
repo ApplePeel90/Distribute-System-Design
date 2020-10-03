@@ -3,23 +3,17 @@ import com.sun.nio.sctp.SctpChannel;
 import com.sun.nio.sctp.SctpServerChannel;
 
 
-
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 public class ServerTest {
-    public static int round_id = 0;
-    public static int numOfClients;
     public static CurrState currState;
     public static List<Receiver> receivers = new ArrayList<>();
     public static List<SctpChannel> senders = new ArrayList<>();
-    public static int NODE;
+    public static int NODE; //Current Node's ID
     public static int totoalNumOfNodes;
-
     public static String HOST;
 
     public static HashMap<String, List<String>> NodeMapping = new HashMap<>();
@@ -29,6 +23,11 @@ public class ServerTest {
     // Client should connect to same port number that server opens
     static int PORT;
 
+    /**
+     * Read the configuration file from each node
+     * @param Node, current node's id
+     * @throws FileNotFoundException
+     */
     public static void readConfig(int Node) throws FileNotFoundException {
         FileReader file = new FileReader("/home/012/q/qx/qxw170003/AOS_P1/configuration.txt");
         Scanner scanner = new Scanner(file);
@@ -43,6 +42,7 @@ public class ServerTest {
         }
         totoalNumOfNodes = count;
 
+        // Read Node, ID, HostName
         int partOne = count;
         while (partOne > 0) {
             String s = scanner.nextLine();
@@ -55,6 +55,7 @@ public class ServerTest {
             partOne--;
         }
 
+        // Read Neighbors
         int index = 0;
         while (index < count) {
             String s = scanner.nextLine();
@@ -62,7 +63,6 @@ public class ServerTest {
             if (index == NODE) {
                 if (s.contains("#")) s = s.substring(0, s.indexOf("#"));
                 String[] arr = s.split(" ");
-
                 for (String i : arr) {
                     neighborMapping.put(NodeMapping.get(i).get(0), NodeMapping.get(i).get(1));
                 }
@@ -74,14 +74,13 @@ public class ServerTest {
     }
 
     public static void main(String[] args) throws Exception {
-        NODE = Integer.parseInt(args[0]);
-        HOST = args[1];
-        PORT = Integer.parseInt(args[2]);
+        NODE = Integer.parseInt(args[0]);  // Current node's id
+        HOST = args[1];  // Current node's hostname
+        PORT = Integer.parseInt(args[2]);  // Current node's openning port
 
         readConfig(NODE);
-        HashMap<Receiver, Boolean> receiverTracker = new HashMap<>();
 
-        //Part 3
+        HashMap<Receiver, Boolean> receiverTracker = new HashMap<>();
         List<HashSet<Integer>> hoppingNeighbors = new ArrayList<>();
         HashSet<Integer> reached = new HashSet<>();
         HashSet<Integer> zeroHop = new HashSet<>();
@@ -89,14 +88,7 @@ public class ServerTest {
         hoppingNeighbors.add(zeroHop);
         reached.add(NODE);
 
-
-        currState = new CurrState(0, 0, 0, NODE, totoalNumOfNodes,receiverTracker, hoppingNeighbors, reached);
-        currState.numberOfNeighbors = neighborMapping.size();
-        currState.msgLeftToRcv = 0;
-        numOfClients = neighborMapping.size();
-
-
-
+        currState = new CurrState(0, 0, NODE, totoalNumOfNodes, neighborMapping.size(), receiverTracker, hoppingNeighbors, reached);
 
         InetSocketAddress openAddr = new InetSocketAddress(PORT); // Get address from port number
         SctpServerChannel ssc = SctpServerChannel.open();//Open server channel
@@ -113,13 +105,11 @@ public class ServerTest {
             System.out.println("Connected to Neighbor");
         }
 
-        int counter = 0;
-        int senderCount = 0;
         int recevierCount = 0;
-        while (recevierCount++ < numOfClients) {
+        while (recevierCount++ < currState.numberOfNeighbors) {
             SctpChannel rcvSC = ssc.accept(); // Wait for incoming connection from client
 
-            Receiver rcv = new Receiver(rcvSC, counter, currState); //send  the request to a separate thread
+            Receiver rcv = new Receiver(rcvSC, currState); // Create a Receiver thread to handle incoming messages for each client
             currState.receiverTracker.put(rcv, true);
             receivers.add(rcv);
         }
@@ -132,50 +122,39 @@ public class ServerTest {
         for (Receiver receiver : receivers) receiver.join();
 
 
-        System.out.println("############ After all rounds");
+//        int eccentricity = 0;
+//        for(int i = 0; i < totoalNumOfNodes; i++){
+//            System.out.print(i + " Hopping Neighbors: ");
+//            if(hoppingNeighbors.get(i).size() != 0) eccentricity = i;
+//            for(int j : hoppingNeighbors.get(i)){
+//                System.out.print(j + " ");
+//            }
+//            System.out.println();
+//        }
+//        System.out.println("Eccentricity: " + eccentricity);
+//        Thread.sleep(5000);
 
 
+
+        // Write the result to files
+        BufferedWriter writer = new BufferedWriter(new FileWriter(("congiguration-" + NODE+".dat")));
         int eccentricity = 0;
         for(int i = 0; i < totoalNumOfNodes; i++){
-            System.out.print(i + " Hopping Neighbors: ");
             if(hoppingNeighbors.get(i).size() != 0) eccentricity = i;
             for(int j : hoppingNeighbors.get(i)){
-                System.out.print(j + " ");
+                writer.write(j+" ");
             }
-            System.out.println();
+            writer.write("\n");
         }
-        System.out.println(eccentricity);
-        Thread.sleep(5000);
-
-        System.out.println("Finished");
+        writer.write(eccentricity+"");
+        writer.close();
     }
 }
 
-
-class CurrState {
-    int NODE;
-    int round_id;
-    int msgLeftToRcv;
-    int msgLeftToSnd;
-    int numberOfNeighbors;
-    int totoalNumOfNodes;
-    HashMap<Receiver, Boolean> receiverTracker;
-    List<HashSet<Integer>> hoppingNeighbors;
-    HashSet<Integer> reached;
-
-
-    public CurrState(int round_id, int msgLeftToRcv, int msgLeftToSnd, int NODE, int totoalNumOfNodes, HashMap<Receiver, Boolean> receiverTracker, List<HashSet<Integer>> hoppingNeighbors, HashSet<Integer> reached) {
-        this.round_id = round_id;
-        this.msgLeftToRcv = msgLeftToRcv;
-        this.msgLeftToSnd = msgLeftToSnd;
-        this.NODE = NODE;
-        this.totoalNumOfNodes = totoalNumOfNodes;
-        this.receiverTracker = receiverTracker;
-        this.hoppingNeighbors = hoppingNeighbors;
-        this.reached = reached;
-    }
-}
-
+/**
+ * Object to broadcast messages to neighbors
+ * Check whether the node could move to next round and notify all the waiting Receiver thread
+ */
 class Synchronizer extends Thread {
     private CurrState currState;
     private List<SctpChannel> senders;
@@ -189,11 +168,11 @@ class Synchronizer extends Thread {
         while (currState.round_id <= currState.totoalNumOfNodes) {
             synchronized (currState) {
                 try {
-                    // Thread.sleep(1000);
                     if (currState.msgLeftToRcv == 0) {
                         currState.round_id++;
-                        // if(currState.round_id == 6) this.interrupt();
                         currState.msgLeftToRcv = currState.numberOfNeighbors;
+
+                        // When entering a new round, send a message to each neighbor
                         for(SctpChannel sender : senders){
                             MessageInfo messageInfo = MessageInfo.createOutgoing(null, 0); // MessageInfo for SCTP layer
                             Message message = new Message("Node " +  currState.NODE  + " Sent a Message at Round " + currState.round_id, currState.round_id, currState.NODE, currState.hoppingNeighbors);
@@ -203,7 +182,6 @@ class Synchronizer extends Thread {
                         currState.hoppingNeighbors.add(new HashSet<Integer>());
                         for(Receiver rcv : currState.receiverTracker.keySet()) currState.receiverTracker.put(rcv, false);
                         currState.notifyAll();
-                        // Thread.sleep(1000);
                     }
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -222,17 +200,19 @@ class Synchronizer extends Thread {
     }
 }
 
+/**
+ * Object to handle incoming messages from neighbors
+ * Each neighbor will be allocated one Receiver thread
+ */
 class Receiver extends Thread {
     CurrState currState;
 
     // Size of ByteBuffer to accept incoming messages
     static int MAX_MSG_SIZE = 4096;
     SctpChannel serverClient;
-    int clientNo;
 
-    Receiver(SctpChannel sc, int counter, CurrState currState) {
+    Receiver(SctpChannel sc, CurrState currState) {
         this.serverClient = sc;
-        this.clientNo = counter;
         this.currState = currState;
     }
 
@@ -241,27 +221,27 @@ class Receiver extends Thread {
             while (currState.round_id <= currState.totoalNumOfNodes) {
                 synchronized (currState) {
                     if(currState.receiverTracker.get(this)) {
-                        System.out.println("-----------------");
                         currState.wait();
                     }
                     ByteBuffer buf = ByteBuffer.allocateDirect(MAX_MSG_SIZE);
-                    // System.out.println("Waiting for MSG");
+
                     serverClient.receive(buf, null, null); // Messages are received over SCTP using ByteBuffer
-                    // System.out.println("After Receive");
+
                     Message msg = Message.fromByteBuffer(buf);
                     int msg_id = msg.round_id;
                     HashSet<Integer> nextHop = msg.hoppingNeighbors.get(msg.hoppingNeighbors.size() - 1);
+
+                    // Add the current node to hopping neighbors if the node has not been reach before
                     for(int node : nextHop){
                         if(!currState.reached.contains(node)) {
                             currState.hoppingNeighbors.get(currState.hoppingNeighbors.size() - 1).add(node);
                             currState.reached.add(node);
                         }
                     }
-
                     currState.receiverTracker.put(this, true);
                     currState.msgLeftToRcv--;
-                    System.out.println("MSG_LEFT: " + currState.msgLeftToRcv);
-                    System.out.println("Node " + currState.NODE + " Received a Message at round " + msg_id);
+
+                    System.out.println("Node " + currState.NODE + " Received a Message at round " + msg_id + " from Node " + msg.srcNode);
                 }
                 try {
                     Thread.sleep(500);
@@ -269,9 +249,35 @@ class Receiver extends Thread {
                     e.printStackTrace();
                 }
             }
-//            serverClient.close();
         } catch (Exception ex) {
             System.out.println(ex);
         }
+    }
+}
+
+/**
+ * Object to be synchronized between Receiver thread and Synchronizer thread
+ * CurrState contains the node's current running state
+ */
+class CurrState {
+    int NODE;
+    int round_id;
+    int msgLeftToRcv;
+    int numberOfNeighbors;
+    int totoalNumOfNodes;
+    HashMap<Receiver, Boolean> receiverTracker;
+    List<HashSet<Integer>> hoppingNeighbors;
+    HashSet<Integer> reached;
+
+
+    public CurrState(int round_id, int msgLeftToRcv, int NODE, int totoalNumOfNodes, int numberOfNeighbors, HashMap<Receiver, Boolean> receiverTracker, List<HashSet<Integer>> hoppingNeighbors, HashSet<Integer> reached) {
+        this.round_id = round_id;
+        this.msgLeftToRcv = msgLeftToRcv;
+        this.NODE = NODE;
+        this.totoalNumOfNodes = totoalNumOfNodes;
+        this.numberOfNeighbors = numberOfNeighbors;
+        this.receiverTracker = receiverTracker;
+        this.hoppingNeighbors = hoppingNeighbors;
+        this.reached = reached;
     }
 }
