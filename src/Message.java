@@ -5,6 +5,8 @@ import java.io.ObjectOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.HashSet;
+import java.util.List;
 
 // Enumeration to store message types
 enum MessageType{string};
@@ -13,20 +15,22 @@ enum MessageType{string};
 // Message class can be modified to incoroporate all fields than need to be passed
 // Message needs to be serializable
 // Most base classes and arrays are serializable
-public class Message implements Serializable 
+public class Message implements Serializable
 {
 	MessageType msgType;
 	public String message;
 	public int round_id;
-	public String hostName;
+	public int srcNode;
+	public List<HashSet<Integer>> hoppingNeighbors;
 
 	// Constructor
-	public Message(String msg, int round_id, String hostName)
+	public Message(String msg, int round_id, int srcNode, List<HashSet<Integer>> hoppingNeighbors)
 	{
 		msgType = MessageType.string;
 		message = msg;
 		this.round_id = round_id;
-		this.hostName = hostName;
+		this.srcNode = srcNode;
+		this.hoppingNeighbors = hoppingNeighbors;
 	}
 
 	// Convert current instance of Message to ByteBuffer in order to send message over SCTP
@@ -36,15 +40,15 @@ public class Message implements Serializable
 		ObjectOutputStream oos = new ObjectOutputStream(bos);
 		oos.writeObject(this);
 		oos.flush();
-		
+
 		ByteBuffer buf = ByteBuffer.allocateDirect(bos.size());
 		buf.put(bos.toByteArray());
-		
+
 		oos.close();
 		bos.close();
 
 		// Buffer needs to be flipped after writing
-		// Buffer flip should happen only once		
+		// Buffer flip should happen only once
 		buf.flip();
 		return buf;
 	}
@@ -68,5 +72,6 @@ public class Message implements Serializable
 
 		return msg;
 	}
-	
+
 }
+
